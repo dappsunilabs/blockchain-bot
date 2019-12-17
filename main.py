@@ -38,7 +38,7 @@ def ask():
 	#message = request.form['messageText'].encode('utf-8').strip()
 	message = request.form['messageText'].encode('utf-8').strip()
 	message=str(message.decode('utf-8'))
-	print("message is ", message)
+	print("message is x ", message)
 	#kernel = aiml.Kernel()
 
 	#if os.path.isfile("bot_brain.brn"):

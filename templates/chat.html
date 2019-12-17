@@ -3,7 +3,8 @@
     <head lang="en">
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Chatbot</title>
+        <title>Chatbot dapps</title>
+        <script src="https://cdn.plot.ly/plotly-1.43.0.min.js"></script>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
         <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
         <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet">
@@ -63,6 +64,7 @@
         </style>
     </head>
     <body>
+        
         <div class="container ">
             <div class="row">
                 <h3 class="text-center"><font color="white"> DappsUni Bot</font></h3>
@@ -70,7 +72,7 @@
                 <div class="col-md-4 col-md-offset-4">
                     <div id="chatPanel" class="panel panel-info fixed-outline">
                         <div class="panel-heading ">
-                            <strong><span class="glyphicon glyphicon-globe"></span> (You: Green / Bot: White) </strong>
+                            <strong><span class="glyphicon glyphicon-globe"></span> (You: Green / dapps Bot: White) </strong>
                         </div>
                         <div class="panel-body fixed-panel">
                             <ul class="media-list">
@@ -92,6 +94,7 @@
                 </div>
             </div>
         </div>
+        <div id="myDiv">
         <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
         <script>
@@ -99,9 +102,117 @@
         </script>
         <script src="https://unpkg.com/speech-to-text@0.7.4/lib/index.js"></script>
         <script>
-        $(function() {
-            var synth = window.speechSynthesis;
+        function jsonPath(obj, expr, arg) {
+   var P = {
+      resultType: arg && arg.resultType || "VALUE",
+      result: [],
+      normalize: function(expr) {
+         var subx = [];
+         return expr.replace(/[\['](\??\(.*?\))[\]']/g, function($0,$1){return "[#"+(subx.push($1)-1)+"]";})
+                    .replace(/'?\.'?|\['?/g, ";")
+                    .replace(/;;;|;;/g, ";..;")
+                    .replace(/;$|'?\]|'$/g, "")
+                    .replace(/#([0-9]+)/g, function($0,$1){return subx[$1];});
+      },
+      asPath: function(path) {
+         var x = path.split(";"), p = "$";
+         for (var i=1,n=x.length; i<n; i++)
+            p += /^[0-9*]+$/.test(x[i]) ? ("["+x[i]+"]") : ("['"+x[i]+"']");
+         return p;
+      },
+      store: function(p, v) {
+         if (p) P.result[P.result.length] = P.resultType == "PATH" ? P.asPath(p) : v;
+         return !!p;
+      },
+      trace: function(expr, val, path) {
+         if (expr) {
+            var x = expr.split(";"), loc = x.shift();
+            x = x.join(";");
+            if (val && val.hasOwnProperty(loc))
+               P.trace(x, val[loc], path + ";" + loc);
+            else if (loc === "*")
+               P.walk(loc, x, val, path, function(m,l,x,v,p) { P.trace(m+";"+x,v,p); });
+            else if (loc === "..") {
+               P.trace(x, val, path);
+               P.walk(loc, x, val, path, function(m,l,x,v,p) { typeof v[m] === "object" && P.trace("..;"+x,v[m],p+";"+m); });
+            }
+            else if (/,/.test(loc)) { // [name1,name2,...]
+               for (var s=loc.split(/'?,'?/),i=0,n=s.length; i<n; i++)
+                  P.trace(s[i]+";"+x, val, path);
+            }
+            else if (/^\(.*?\)$/.test(loc)) // [(expr)]
+               P.trace(P.eval(loc, val, path.substr(path.lastIndexOf(";")+1))+";"+x, val, path);
+            else if (/^\?\(.*?\)$/.test(loc)) // [?(expr)]
+               P.walk(loc, x, val, path, function(m,l,x,v,p) { if (P.eval(l.replace(/^\?\((.*?)\)$/,"$1"),v[m],m)) P.trace(m+";"+x,v,p); });
+            else if (/^(-?[0-9]*):(-?[0-9]*):?([0-9]*)$/.test(loc)) // [start:end:step]  phyton slice syntax
+               P.slice(loc, x, val, path);
+         }
+         else
+            P.store(path, val);
+      },
+      walk: function(loc, expr, val, path, f) {
+         if (val instanceof Array) {
+            for (var i=0,n=val.length; i<n; i++)
+               if (i in val)
+                  f(i,loc,expr,val,path);
+         }
+         else if (typeof val === "object") {
+            for (var m in val)
+               if (val.hasOwnProperty(m))
+                  f(m,loc,expr,val,path);
+         }
+      },
+      slice: function(loc, expr, val, path) {
+         if (val instanceof Array) {
+            var len=val.length, start=0, end=len, step=1;
+            loc.replace(/^(-?[0-9]*):(-?[0-9]*):?(-?[0-9]*)$/g, function($0,$1,$2,$3){start=parseInt($1||start);end=parseInt($2||end);step=parseInt($3||step);});
+            start = (start < 0) ? Math.max(0,start+len) : Math.min(len,start);
+            end   = (end < 0)   ? Math.max(0,end+len)   : Math.min(len,end);
+            for (var i=start; i<end; i+=step)
+               P.trace(i+";"+expr, val, path);
+         }
+      },
+      eval: function(x, _v, _vname) {
+         try { return $ && _v && eval(x.replace(/@/g, "_v")); }
+         catch(e) { throw new SyntaxError("jsonPath: " + e.message + ": " + x.replace(/@/g, "_v").replace(/\^/g, "_a")); }
+      }
+   };
 
+   var $ = obj;
+   if (expr && obj && (P.resultType == "VALUE" || P.resultType == "PATH")) {
+      P.trace(P.normalize(expr).replace(/^\$;/,""), obj, "$");
+      return P.result.length ? P.result : false;
+   }
+} 
+        $(function() {
+            
+            var trace1 = {
+  x: [
+    ['SF Zoo','SF Zoo','SF Zoo'],
+    ['giraffes', 'orangutans', 'monkeys']
+  ], 
+  y: [20, 14, 23], 
+  name: 'SF Zoo', 
+  type: 'bar'
+};
+
+
+var data = [trace1];
+var layout = {
+  showlegend: false,
+  xaxis: {
+    tickson: "boundaries",
+    ticklen: 15,
+    showdividers: true,
+    dividercolor: 'grey',
+    dividerwidth: 2
+  }
+};
+
+//Plotly.newPlot('myDiv', data, layout, {showSendToCloud: true});
+
+            var synth = window.speechSynthesis;
+            var divID=0;
             var msg = new SpeechSynthesisUtterance();
             var voices = synth.getVoices();
             msg.voice = voices[0];
@@ -151,15 +262,51 @@
                 $(".media-list").append('<li class="media"><div class="media-body"><div class="media"><div style = "text-align:right; color : #2EFE2E" class="media-body">' + message + '<hr/></div></div></div></li>');
 
                 $.ajax({
-                    type: "POST",
-                    url: "/ask",
-                    data: $(this).serialize(),
+                    type: "GET",
+                    //url: "http://1573188731.proxy.chainapp.live/chain",
+                    url: "http://127.0.0.1:5001/chain",
+                    
+                    //data: $(this).serialize(),
                     success: function(response) {
+                        divID=divID+1;
+                        result="";
+                        //result += jsonPath(response, "$.index").toJSONString() + "<br />";
+                        //result += jsonPath(response, "$.chain[*].index").toString();
+                        result += jsonPath(response, "$.chain[*].transactions[*].amount").toString();
+                        result += jsonPath(response, "$.chain[*].transactions[*].recipient").toString();
+                        result += jsonPath(response, "$.chain[*].transactions[*].sender").toString();
+                        result += jsonPath(response, "$.length").toString();
+                        
+                        console.log(result);
+                        //console.log(typeof result);
                         $('#messageText').val('');
-                        var answer = response.answer;
+                        var test=result.split(',');
+                        var size = Object.keys(test).length;
+                        for (i = 0; i < size; i++) {
+                            console.log(parseInt(test[i]));
+                        }
+
+                        //console.log(size);
+                        //console.log(test);
+                        //var answer = response.chain;
+                        var answer = result;
+                        //console.log(answer);
                         const chatPanel = document.getElementById("chatPanel");
                         $(".media-list").append('<li class="media"><div class="media-body"><div class="media"><div style = "color : white" class="media-body">' + answer + '<hr/></div></div></div></li>');
+                        //$(".fixed-panel").stop().animate({ scrollTop: $(".fixed-panel")[0].scrollHeight}, 1000);
+                        trace1.y[0]=test[0];
+                        //console.log(result[5]);
+                        
+                        $(".media-list").append('<div id="myDiv'+divID+'"'+'> </div>');
+
+                        
+
                         $(".fixed-panel").stop().animate({ scrollTop: $(".fixed-panel")[0].scrollHeight}, 1000);
+
+                        Plotly.newPlot('myDiv'+divID, data, layout, {showSendToCloud: true});
+                        
+
+
                         
                         msg.text = answer;
                         //console.log(msg.text);
